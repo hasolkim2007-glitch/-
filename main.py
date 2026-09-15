@@ -12,7 +12,7 @@ from flask import Flask
 from waitress import serve
 
 # ---------------------------------------------------------
-# 1. Flask 서버 설정 (Render 포트 감지 필수)
+# 1. Flask 서버 설정 (Render 포트 감지 및 UptimeRobot용)
 # ---------------------------------------------------------
 app = Flask(__name__)
 
@@ -25,7 +25,6 @@ def home():
     return "Bot is running!"
 
 def run_flask():
-    # Render가 제공하는 PORT 환경변수 사용 (기본값 10000)
     port = int(os.environ.get("PORT", 10000))
     print(f"Starting Flask server on port {port}...")
     serve(app, host='0.0.0.0', port=port)
@@ -131,7 +130,7 @@ async def on_ready():
 # 5. 슬래시 명령어 정의
 # ---------------------------------------------------------
 
-# --- 명령어 1: /인원체크 ---
+# --- 1) /인원체크 ---
 @bot.tree.command(name="인원체크", description="참가/취소 인원 체크 패널을 생성합니다. (20분 전 취소 제한)")
 @app_commands.describe(제목="예: 오늘 내전 참가자 모집", 시작시간="HH:MM 형식 입력 (예: 21:00 또는 21:30)")
 @app_commands.checks.has_permissions(administrator=True)
@@ -164,7 +163,7 @@ async def attendance_panel_error(interaction: discord.Interaction, error: app_co
         await interaction.response.send_message("❌ 이 명령어를 사용할 권한(관리자)이 없습니다.", ephemeral=True)
 
 
-# --- 명령어 2: /강제취소 (관리자 전용) ---
+# --- 2) /강제취소 (관리자 전용) ---
 @bot.tree.command(name="강제취소", description="[관리자 전용] 특정 유저를 참가 명단에서 강제로 제외합니다.")
 @app_commands.describe(유저="명단에서 제외할 유저를 선택하세요.")
 @app_commands.checks.has_permissions(administrator=True)
@@ -201,11 +200,60 @@ async def force_cancel_user_error(interaction: discord.Interaction, error: app_c
         await interaction.response.send_message("❌ 이 명령어를 사용할 권한(관리자)이 없습니다.", ephemeral=True)
 
 
+# --- 3) /리롤 (명단 초기화) ---
+@bot.tree.command(name="리롤", description="[관리자 전용] 현재 진행 중인 패널의 참가 명단을 초기화합니다.")
+@app_commands.checks.has_permissions(administrator=True)
+async def reroll_participants(interaction: discord.Interaction):
+    global active_attendance_view
+
+    if active_attendance_view is None:
+        await interaction.response.send_message("❌ 현재 진행 중인 인원체크 패널이 없습니다.", ephemeral=True)
+        return
+
+    # 명단 리셋
+    active_attendance_view.participants.clear()
+
+    # 패널 화면 갱신
+    if active_attendance_view.message:
+        try:
+            await active_attendance_view.message.edit(
+                embed=active_attendance_view.build_embed(),
+                view=active_attendance_view
+            )
+        except Exception as e:
+            print(f"패널 업데이트 오류: {e}")
+
+    await interaction.response.send_message("🔄 참가 명단이 초기화되었습니다.", ephemeral=True)
+
+@reroll_participants.error
+async def reroll_participants_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message("❌ 이 명령어를 사용할 권한(관리자)이 없습니다.", ephemeral=True)
+
+
+# --- 4) /청소 (메시지 대량 삭제) ---
+@bot.tree.command(name="청소", description="[관리자 전용] 지정한 개수만큼 채널의 메시지를 삭제합니다.")
+@app_commands.describe(개수="삭제할 메시지 개수 (1~100)")
+@app_commands.checks.has_permissions(administrator=True)
+async def clear_messages(interaction: discord.Interaction, 개수: int):
+    if 개수 < 1 or 개수 > 100:
+        await interaction.response.send_message("❌ 1개 이상 100개 이하의 개수를 입력해 주세요.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True)
+    deleted = await interaction.channel.purge(limit=개수)
+    await interaction.followup.send(f"🧹 `{len(deleted)}`개의 메시지를 삭제했습니다.", ephemeral=True)
+
+@clear_messages.error
+async def clear_messages_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message("❌ 이 명령어를 사용할 권한(관리자)이 없습니다.", ephemeral=True)
+
+
 # ---------------------------------------------------------
-# 6. 실행 구문 (Render 환경 대응 예외처리 강화)
+# 6. 실행 구문
 # ---------------------------------------------------------
 if __name__ == "__main__":
-    # 웹 서버 먼저 시작 (Render의 포트 감지 실패 방지)
     keep_alive()
 
     TOKEN = os.environ.get("DISCORD_TOKEN")
