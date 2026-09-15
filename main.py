@@ -161,7 +161,7 @@ class FirstComeLineView(discord.ui.View):
         await interaction.followup.send(f"✅ **[ {selection_name} ] 리롤 신청에 성공하셨습니다.**", ephemeral=True)
 
         # 운영진 로그 채널 전송
-        f LOG_CHANNEL_ID != 1549301300053811290 and interaction.guild:
+        if LOG_CHANNEL_ID != 1549301300053811290 and interaction.guild:
     try:
         # 캐시 대신 API를 통해 채널을 비동기로 가져옵니다.
         log_channel = await interaction.client.fetch_channel(int(LOG_CHANNEL_ID))
