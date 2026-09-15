@@ -1,5 +1,6 @@
 import os
 import sys
+import asyncio
 import threading
 import datetime
 import logging
@@ -40,6 +41,9 @@ def keep_alive():
 # ---------------------------------------------------------
 KST = datetime.timezone(datetime.timedelta(hours=9))
 
+# 운영진 로그 채널 ID (환경변수 또는 지정 ID)
+LOG_CHANNEL_ID = int(os.environ.get("LOG_CHANNEL_ID", 0))
+
 intents = discord.Intents.default()
 intents.message_content = True
 
@@ -48,6 +52,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # 전역 상태 변수
 active_attendance_view: Optional['AttendanceView'] = None
 active_rule_vote_view: Optional['RuleVoteView'] = None
+current_view: Optional['FirstComeLineView'] = None
 
 
 # ---------------------------------------------------------
@@ -115,89 +120,139 @@ class AttendanceView(discord.ui.View):
 
 
 # ---------------------------------------------------------
-# 4. UI 클래스 2: 라운드별 규칙 투표 UI
+# 4. UI 클래스 2: 선착순 리롤/팀폭 신청 UI
 # ---------------------------------------------------------
-class RuleVoteView(discord.ui.View):
-    def __init__(self):
+class FirstComeLineView(discord.ui.View):
+    def __init__(self, disabled_initial=True):
         super().__init__(timeout=None)
-        # 규칙 데이터 정의
-        self.pool = {
-            "1라": ["올랜팀폭", "라인별팀폭"],
-            "2라": ["선착순 1명", "일반전"],
-            "3라": ["올랜팀폭", "라인별팀폭"],
-            "4라": ["선착순 1명", "일반전"]
-        }
-        # 라운드별 투표 현황 { '1라': {'올랜팀폭': set(user_id)}, ... }
-        self.votes = {
-            round_key: {option: set() for option in options}
-            for round_key, options in self.pool.items()
-        }
+        self.is_closed = False
+        self.clicked_user = None
         self.message: Optional[discord.Message] = None
+        
+        if disabled_initial:
+            for child in self.children:
+                child.disabled = True
 
-    def build_embed(self) -> discord.Embed:
-        embed = discord.Embed(
-            title="🎯 라운드별 규칙 투표 패널",
-            description="아래 버튼을 눌러 라운드별 원하는 규칙에 투표하세요!",
-            color=discord.Color.gold()
+    def set_all_buttons_disabled(self, disabled_state: bool):
+        for child in self.children:
+            child.disabled = disabled_state
+
+    async def handle_selection(self, interaction: discord.Interaction, selection_name: str):
+        if self.is_closed:
+            await interaction.response.send_message(
+                "❌ **이미 리롤이 마감되었습니다!**",
+                ephemeral=True
+            )
+            return
+
+        self.is_closed = True
+        self.clicked_user = interaction.user
+        self.set_all_buttons_disabled(True)
+
+        await interaction.response.send_message(
+            f"✅ **[ {selection_name} ] 리롤 신청에 성공하셨습니다.**",
+            ephemeral=True
         )
+
+        if self.message:
+            embed = self.message.embeds[0]
+            embed.title = "✅ 리롤 신청 마감"
+            embed.description = f"🔥 **[{selection_name}] 리롤 신청 성공:** {interaction.user.mention}"
+            embed.color = discord.Color.blue()
+            await self.message.edit(embed=embed, view=self)
+
+        # 로그 채널 전송
+        if LOG_CHANNEL_ID != 0 and interaction.guild:
+            log_channel = interaction.guild.get_channel(LOG_CHANNEL_ID)
+            if log_channel:
+                now_str = datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+                user = interaction.user
+                
+                embed_log = discord.Embed(
+                    title="리롤/팀폭 신청 성공",
+                    color=discord.Color.gold(),
+                    timestamp=datetime.datetime.now(datetime.timezone.utc)
+                )
+                embed_log.add_field(name="신청 항목", value=f"**{selection_name}**", inline=True)
+                embed_log.add_field(name="당첨자", value=f"{user.mention} (`{user.display_name}`)", inline=True)
+                embed_log.add_field(name="유저 ID", value=f"`{user.id}`", inline=False)
+                embed_log.add_field(name="접수 시각", value=f"`{now_str}`", inline=False)
+
+                await log_channel.send(embed=embed_log)
+
+    @discord.ui.button(label="1라인", style=discord.ButtonStyle.primary, custom_id="line_1", row=0)
+    async def line_1_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle_selection(interaction, "1라인")
+
+    @discord.ui.button(label="2라인", style=discord.ButtonStyle.primary, custom_id="line_2", row=0)
+    async def line_2_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle_selection(interaction, "2라인")
+
+    @discord.ui.button(label="3라인", style=discord.ButtonStyle.primary, custom_id="line_3", row=0)
+    async def line_3_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle_selection(interaction, "3라인")
+
+    @discord.ui.button(label="4라인", style=discord.ButtonStyle.primary, custom_id="line_4", row=0)
+    async def line_4_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle_selection(interaction, "4라인")
+
+    @discord.ui.button(label="라인별팀폭", style=discord.ButtonStyle.danger, custom_id="team_bomb_line", row=1)
+    async def line_bomb_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle_selection(interaction, "라인별팀폭")
+
+    @discord.ui.button(label="올랜팀폭", style=discord.ButtonStyle.danger, custom_id="team_bomb_allrand", row=1)
+    async def allrand_bomb_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle_selection(interaction, "올랜팀폭")
+
+
+# 카운트다운 및 10초 대기 처리 함수
+async def run_countdown_and_start(interaction: discord.Interaction, title_text: str):
+    global current_view
+    current_view = FirstComeLineView(disabled_initial=True)
+
+    embed = discord.Embed(
+        title=f"⏳ {title_text}",
+        description="**카운트다운 진행 중... 잠시만 기다려주세요!**\n\n3️⃣",
+        color=discord.Color.yellow()
+    )
+    
+    msg = await interaction.channel.send(embed=embed, view=current_view)
+    current_view.message = msg
+    await interaction.response.send_message("카운트다운을 시작합니다.", ephemeral=True)
+
+    await asyncio.sleep(1)
+    embed.description = "**카운트다운 진행 중... 잠시만 기다려주세요!**\n\n2️⃣"
+    await msg.edit(embed=embed)
+
+    await asyncio.sleep(1)
+    embed.description = "**카운트다운 진행 중... 잠시만 기다려주세요!**\n\n1️⃣"
+    await msg.edit(embed=embed)
+
+    await asyncio.sleep(1)
+    
+    current_view.set_all_buttons_disabled(False)
+    embed.title = f"⚡ {title_text}"
+    embed.description = "🔥 **신청 시작!! (남은 시간: 10초)**"
+    embed.color = discord.Color.green()
+    await msg.edit(embed=embed, view=current_view)
+
+    for remaining in range(9, -1, -1):
+        await asyncio.sleep(1)
+        if current_view.is_closed:
+            return
         
-        for round_name, options in self.votes.items():
-            field_val = ""
-            for opt, voters in options.items():
-                field_val += f"• **{opt}**: {len(voters)}표\n"
-            embed.add_field(name=f"📌 {round_name}", value=field_val, inline=False)
+        if remaining > 0:
+            embed.description = f"🔥 **신청 시작!! (남은 시간: {remaining}초)**"
+            await msg.edit(embed=embed)
 
-        embed.set_footer(text="1인당 라운드별 1표씩 투표 가능합니다.")
-        return embed
-
-    # --- 1라운드 투표 버튼 ---
-    @discord.ui.button(label="1라: 올랜팀폭", style=discord.ButtonStyle.primary, custom_id="v1_opt1", row=0)
-    async def v1_o1(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._vote(interaction, "1라", "올랜팀폭")
-
-    @discord.ui.button(label="1라: 라인별팀폭", style=discord.ButtonStyle.primary, custom_id="v1_opt2", row=0)
-    async def v1_o2(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._vote(interaction, "1라", "라인별팀폭")
-
-    # --- 2라운드 투표 버튼 ---
-    @discord.ui.button(label="2라: 선착순 1명", style=discord.ButtonStyle.secondary, custom_id="v2_opt1", row=1)
-    async def v2_o1(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._vote(interaction, "2라", "선착순 1명")
-
-    @discord.ui.button(label="2라: 일반전", style=discord.ButtonStyle.secondary, custom_id="v2_opt2", row=1)
-    async def v2_o2(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._vote(interaction, "2라", "일반전")
-
-    # --- 3라운드 투표 버튼 ---
-    @discord.ui.button(label="3라: 올랜팀폭", style=discord.ButtonStyle.primary, custom_id="v3_opt1", row=2)
-    async def v3_o1(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._vote(interaction, "3라", "올랜팀폭")
-
-    @discord.ui.button(label="3라: 라인별팀폭", style=discord.ButtonStyle.primary, custom_id="v3_opt2", row=2)
-    async def v3_o2(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._vote(interaction, "3라", "라인별팀폭")
-
-    # --- 4라운드 투표 버튼 ---
-    @discord.ui.button(label="4라: 선착순 1명", style=discord.ButtonStyle.secondary, custom_id="v4_opt1", row=3)
-    async def v4_o1(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._vote(interaction, "4라", "선착순 1명")
-
-    @discord.ui.button(label="4라: 일반전", style=discord.ButtonStyle.secondary, custom_id="v4_opt2", row=3)
-    async def v4_o2(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._vote(interaction, "4라", "일반전")
-
-    async def _vote(self, interaction: discord.Interaction, round_key: str, choice: str):
-        user_id = interaction.user.id
+    if not current_view.is_closed:
+        current_view.is_closed = True
+        current_view.set_all_buttons_disabled(True)
         
-        # 같은 라운드 내 기존 투표 제거 (중복 투표 방지)
-        for opt in self.votes[round_key]:
-            self.votes[round_key][opt].discard(user_id)
-
-        # 새 항목에 투표
-        self.votes[round_key][choice].add(user_id)
-
-        await interaction.response.edit_message(embed=self.build_embed(), view=self)
-        await interaction.followup.send(f"✅ [{round_key}] `{choice}` 에 투표하셨습니다.", ephemeral=True)
+        embed.title = f"⏰ {title_text} (마감)"
+        embed.description = "⏱️ **10초 동안 신청이 없어 자동으로 마감되었습니다.**"
+        embed.color = discord.Color.dark_gray()
+        await msg.edit(embed=embed, view=current_view)
 
 
 # ---------------------------------------------------------
@@ -217,7 +272,14 @@ async def on_ready():
 # 6. 슬래시 명령어 정의
 # ---------------------------------------------------------
 
-# --- 1) /인원체크 ---
+# --- 1) /리롤 (선착순 리롤/팀폭 신청) ---
+@bot.tree.command(name="리롤", description="카운트다운 후 리롤 신청 버튼을 오픈합니다. (10초 제한)")
+@app_commands.checks.has_permissions(administrator=True)
+async def create_panel(interaction: discord.Interaction):
+    await run_countdown_and_start(interaction, "리롤 / 팀폭 신청")
+
+
+# --- 2) /인원체크 ---
 @bot.tree.command(name="인원체크", description="참가/취소 인원 체크 패널을 생성합니다. (20분 전 취소 제한)")
 @app_commands.describe(제목="예: 오늘 내전 참가자 모집", 시작시간="HH:MM 형식 입력 (예: 21:00 또는 21:30)")
 @app_commands.checks.has_permissions(administrator=True)
@@ -250,7 +312,7 @@ async def attendance_panel_error(interaction: discord.Interaction, error: app_co
         await interaction.response.send_message("❌ 이 명령어를 사용할 권한(관리자)이 없습니다.", ephemeral=True)
 
 
-# --- 2) /강제취소 (관리자 전용) ---
+# --- 3) /강제취소 (관리자 전용) ---
 @bot.tree.command(name="강제취소", description="[관리자 전용] 특정 유저를 참가 명단에서 강제로 제외합니다.")
 @app_commands.describe(유저="명단에서 제외할 유저를 선택하세요.")
 @app_commands.checks.has_permissions(administrator=True)
@@ -283,27 +345,6 @@ async def force_cancel_user(interaction: discord.Interaction, 유저: discord.Me
 
 @force_cancel_user.error
 async def force_cancel_user_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-    if isinstance(error, app_commands.MissingPermissions):
-        await interaction.response.send_message("❌ 이 명령어를 사용할 권한(관리자)이 없습니다.", ephemeral=True)
-
-
-# --- 3) /투표패널 (1라~4라 규칙 투표 생성) ---
-@bot.tree.command(name="투표패널", description="1라~4라 규칙 투표 패널을 채널에 생성합니다.")
-@app_commands.checks.has_permissions(administrator=True)
-async def create_vote_panel(interaction: discord.Interaction):
-    global active_rule_vote_view
-
-    view = RuleVoteView()
-    embed = view.build_embed()
-
-    await interaction.response.send_message("투표 패널이 생성되었습니다.", ephemeral=True)
-    sent_msg = await interaction.channel.send(embed=embed, view=view)
-
-    view.message = sent_msg
-    active_rule_vote_view = view
-
-@create_vote_panel.error
-async def create_vote_panel_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.MissingPermissions):
         await interaction.response.send_message("❌ 이 명령어를 사용할 권한(관리자)이 없습니다.", ephemeral=True)
 
