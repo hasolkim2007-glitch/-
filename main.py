@@ -152,7 +152,7 @@ class FirstComeLineView(discord.ui.View):
         # 결과 Embed 생성
         embed = discord.Embed(
             title="✅ 리롤 신청 마감",
-            description=f"🔥 **[{selection_name}] 리롤 신청 성공:** {interaction.user.mention}",
+            description=f"🔥 **[{selection_name}] 리롤 신청 성공:** ",
             color=discord.Color.blue()
         )
 
@@ -161,7 +161,7 @@ class FirstComeLineView(discord.ui.View):
         await interaction.followup.send(f"✅ **[ {selection_name} ] 리롤 신청에 성공하셨습니다.**", ephemeral=True)
 
         # 운영진 로그 채널 전송
-        if LOG_CHANNEL_ID != 0 and interaction.guild:
+        if LOG_CHANNEL_ID != 1549301300053811290 and interaction.guild:
             try:
                 log_channel = await interaction.client.fetch_channel(int(LOG_CHANNEL_ID))
                 if log_channel:
