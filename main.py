@@ -329,7 +329,7 @@ async def run_countdown_and_start(interaction: discord.Interaction, title_text: 
         current_view.set_all_buttons_disabled(True)
         
         embed.title = f"⏰ {title_text} (마감)"
-        embed.description = "⏱️ **10초 동안 신청이 없어 자동으로 마감되었습니다.**"
+        embed.description = "⏱️ **15초 동안 신청이 없어 자동으로 마감되었습니다.**"
         embed.color = discord.Color.dark_gray()
         await msg.edit(embed=embed, view=current_view)
 
