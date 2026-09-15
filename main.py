@@ -311,11 +311,11 @@ async def run_countdown_and_start(interaction: discord.Interaction, title_text: 
     
     current_view.set_all_buttons_disabled(False)
     embed.title = f"⚡ {title_text}"
-    embed.description = "🔥 **신청 시작!! (남은 시간: 10초)**"
+    embed.description = "🔥 **신청 시작!! (남은 시간: 15초)**"
     embed.color = discord.Color.green()
     await msg.edit(embed=embed, view=current_view)
 
-    for remaining in range(9, -1, -1):
+    for remaining in range(14, -1, -1):
         await asyncio.sleep(1)
         if current_view.is_closed:
             return
