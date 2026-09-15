@@ -161,37 +161,52 @@ class FirstComeLineView(discord.ui.View):
         await interaction.followup.send(f"✅ **[ {selection_name} ] 리롤 신청에 성공하셨습니다.**", ephemeral=True)
 
         # 운영진 로그 채널 전송
-        if LOG_CHANNEL_ID != 1549301300053811290 and interaction.guild:
+       async def handle_selection(self, interaction: discord.Interaction, selection_name: str):
+        if self.is_closed:
+            await interaction.response.send_message(
+                "❌ **이미 리롤이 마감되었습니다!**",
+                ephemeral=True
+            )
+            return
+
+        # 선착순 선점
+        self.is_closed = True
+        self.clicked_user = interaction.user
+        self.set_all_buttons_disabled(True)
+
+        # 결과 Embed 생성
+        embed = discord.Embed(
+            title="✅ 리롤 신청 마감",
+            description=f"🔥 **[{selection_name}] 리롤 신청 성공:** {interaction.user.mention}",
+            color=discord.Color.blue()
+        )
+
+        # 메시지 원본 업데이트 (버튼 비활성화 및 Embed 교체)
+        await interaction.response.edit_message(embed=embed, view=self)
+        await interaction.followup.send(f"✅ **[ {selection_name} ] 리롤 신청에 성공하셨습니다.**", ephemeral=True)
+
+        # 운영진 로그 채널 전송
+        if LOG_CHANNEL_ID != 0 and interaction.guild:
             try:
-        # 캐시 대신 API를 통해 채널을 비동기로 가져옵니다.
-        log_channel = await interaction.client.fetch_channel(int(LOG_CHANNEL_ID))
-        
-        if log_channel:
-            now_str = datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            user = interaction.user
-            
-            # 로그 메시지 전송 예시 (Embed 또는 일반 텍스트)
-            await log_channel.send(f"[{now_str}] {user.mention} 님이 리롤을 진행했습니다.")
-            
-    except discord.NotFound:
-        print(f"[Error] LOG_CHANNEL_ID({LOG_CHANNEL_ID})에 해당하는 채널을 찾을 수 없습니다.")
-    except discord.Forbidden:
-        print(f"[Error] 봇이 로그 채널에 접근하거나 메시지를 보낼 권한이 없습니다.")
-    except Exception as e:
-        print(f"[Error] 로그 전송 중 오류 발생: {e}")
+                log_channel = await interaction.client.fetch_channel(int(LOG_CHANNEL_ID))
+                if log_channel:
+                    now_str = datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+                    user = interaction.user
+                    
+                    embed_log = discord.Embed(
+                        title="리롤/팀폭 신청 성공",
+                        color=discord.Color.gold(),
+                        timestamp=datetime.datetime.now(datetime.timezone.utc)
+                    )
+                    embed_log.add_field(name="신청 항목", value=f"**{selection_name}**", inline=True)
+                    embed_log.add_field(name="당첨자", value=f"{user.mention} (`{user.display_name}`)", inline=True)
+                    embed_log.add_field(name="유저 ID", value=f"`{user.id}`", inline=False)
+                    embed_log.add_field(name="접수 시각", value=f"`{now_str}`", inline=False)
+
+                    await log_channel.send(embed=embed_log)
+            except Exception as e:
+                print(f"[Error] 로그 전송 실패: {e}")
                 
-                embed_log = discord.Embed(
-                    title="리롤/팀폭 신청 성공",
-                    color=discord.Color.gold(),
-                    timestamp=datetime.datetime.now(datetime.timezone.utc)
-                )
-                embed_log.add_field(name="신청 항목", value=f"**{selection_name}**", inline=True)
-                embed_log.add_field(name="당첨자", value=f"{user.mention} (`{user.display_name}`)", inline=True)
-                embed_log.add_field(name="유저 ID", value=f"`{user.id}`", inline=False)
-                embed_log.add_field(name="접수 시각", value=f"`{now_str}`", inline=False)
-
-                await log_channel.send(embed=embed_log)
-
     @discord.ui.button(label="1라인", style=discord.ButtonStyle.primary, custom_id="line_1", row=0)
     async def line_1_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.handle_selection(interaction, "1라인")
