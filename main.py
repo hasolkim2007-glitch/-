@@ -152,31 +152,6 @@ class FirstComeLineView(discord.ui.View):
         # 결과 Embed 생성
         embed = discord.Embed(
             title="✅ 리롤 신청 마감",
-            description=f"🔥 **[{selection_name}] 리롤 신청 성공:** ",
-            color=discord.Color.blue()
-        )
-
-        # 메시지 원본 업데이트 (버튼 비활성화 및 Embed 교체)
-        await interaction.response.edit_message(embed=embed, view=self)
-        await interaction.followup.send(f"✅ **[ {selection_name} ] 리롤 신청에 성공하셨습니다.**", ephemeral=True)
-
-        # 운영진 로그 채널 전송
-       async def handle_selection(self, interaction: discord.Interaction, selection_name: str):
-        if self.is_closed:
-            await interaction.response.send_message(
-                "❌ **이미 리롤이 마감되었습니다!**",
-                ephemeral=True
-            )
-            return
-
-        # 선착순 선점
-        self.is_closed = True
-        self.clicked_user = interaction.user
-        self.set_all_buttons_disabled(True)
-
-        # 결과 Embed 생성
-        embed = discord.Embed(
-            title="✅ 리롤 신청 마감",
             description=f"🔥 **[{selection_name}] 리롤 신청 성공:** {interaction.user.mention}",
             color=discord.Color.blue()
         )
@@ -206,7 +181,7 @@ class FirstComeLineView(discord.ui.View):
                     await log_channel.send(embed=embed_log)
             except Exception as e:
                 print(f"[Error] 로그 전송 실패: {e}")
-                
+
     @discord.ui.button(label="1라인", style=discord.ButtonStyle.primary, custom_id="line_1", row=0)
     async def line_1_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.handle_selection(interaction, "1라인")
@@ -230,7 +205,6 @@ class FirstComeLineView(discord.ui.View):
     @discord.ui.button(label="올랜팀폭", style=discord.ButtonStyle.danger, custom_id="team_bomb_allrand", row=1)
     async def allrand_bomb_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.handle_selection(interaction, "올랜팀폭")
-
 
 # ---------------------------------------------------------
 # 5. UI 클래스 3: 라운드별 규칙 투표 UI
