@@ -1,5 +1,6 @@
 import os
 import sys
+import random
 import threading
 import datetime
 import logging
@@ -45,12 +46,13 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# 가장 최근에 생성된 인원체크 패널 View 저장 전역 변수
+# 전역 상태 변수
 active_attendance_view: Optional['AttendanceView'] = None
+active_rule_vote_view: Optional['RuleVoteView'] = None
 
 
 # ---------------------------------------------------------
-# 3. 인원체크 UI (View & Buttons)
+# 3. UI 클래스 1: 인원체크 UI (View & Buttons)
 # ---------------------------------------------------------
 class AttendanceView(discord.ui.View):
     def __init__(self, title: str, start_time_obj: datetime.datetime, raw_time_str: str):
@@ -114,7 +116,100 @@ class AttendanceView(discord.ui.View):
 
 
 # ---------------------------------------------------------
-# 4. 봇 이벤트 설정
+# 4. UI 클래스 2: 라운드별 규칙 투표 & 리롤 UI
+# ---------------------------------------------------------
+class RuleVoteView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        # 규칙 데이터 정의
+        self.pool = {
+            "1라": ["올랜팀폭", "라인별팀폭"],
+            "2라": ["선착순 1명", "일반전"],
+            "3라": ["올랜팀폭", "라인별팀폭"],
+            "4라": ["선착순 1명", "일반전"]
+        }
+        # 라운드별 현재 선택 항목 및 투표수 { '1라': {'올랜팀폭': set(user_id)}, ... }
+        self.votes = {
+            round_key: {option: set() for option in options}
+            for round_key, options in self.pool.items()
+        }
+        self.message: Optional[discord.Message] = None
+
+    def reroll(self):
+        """규칙을 무작위로 다시 섞고 투표수 초기화"""
+        self.votes = {
+            round_key: {option: set() for option in options}
+            for round_key, options in self.pool.items()
+        }
+
+    def build_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title="🎯 라운드별 규칙 투표 패널",
+            description="아래 버튼을 눌러 라운드별 원하는 규칙에 투표하세요!\n관리자는 `/리롤` 명령어로 규칙을 초기화/다시 뽑을 수 있습니다.",
+            color=discord.Color.gold()
+        )
+        
+        for round_name, options in self.votes.items():
+            field_val = ""
+            for opt, voters in options.items():
+                field_val += f"• **{opt}**: {len(voters)}표\n"
+            embed.add_field(name=f"📌 {round_name}", value=field_val, inline=False)
+
+        embed.set_footer(text="1인당 라운드별 1표씩 투표 가능합니다.")
+        return embed
+
+    # --- 1라운드 투표 버튼 ---
+    @discord.ui.button(label="1라: 올랜팀폭", style=discord.ButtonStyle.primary, custom_id="v1_opt1", row=0)
+    async def v1_o1(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._vote(interaction, "1라", "올랜팀폭")
+
+    @discord.ui.button(label="1라: 라인별팀폭", style=discord.ButtonStyle.primary, custom_id="v1_opt2", row=0)
+    async def v1_o2(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._vote(interaction, "1라", "라인별팀폭")
+
+    # --- 2라운드 투표 버튼 ---
+    @discord.ui.button(label="2라: 선착순 1명", style=discord.ButtonStyle.secondary, custom_id="v2_opt1", row=1)
+    async def v2_o1(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._vote(interaction, "2라", "선착순 1명")
+
+    @discord.ui.button(label="2라: 일반전", style=discord.ButtonStyle.secondary, custom_id="v2_opt2", row=1)
+    async def v2_o2(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._vote(interaction, "2라", "일반전")
+
+    # --- 3라운드 투표 버튼 ---
+    @discord.ui.button(label="3라: 올랜팀폭", style=discord.ButtonStyle.primary, custom_id="v3_opt1", row=2)
+    async def v3_o1(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._vote(interaction, "3라", "올랜팀폭")
+
+    @discord.ui.button(label="3라: 라인별팀폭", style=discord.ButtonStyle.primary, custom_id="v3_opt2", row=2)
+    async def v3_o2(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._vote(interaction, "3라", "라인별팀폭")
+
+    # --- 4라운드 투표 버튼 ---
+    @discord.ui.button(label="4라: 선착순 1명", style=discord.ButtonStyle.secondary, custom_id="v4_opt1", row=3)
+    async def v4_o1(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._vote(interaction, "4라", "선착순 1명")
+
+    @discord.ui.button(label="4라: 일반전", style=discord.ButtonStyle.secondary, custom_id="v4_opt2", row=3)
+    async def v4_o2(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._vote(interaction, "4라", "일반전")
+
+    async def _vote(self, interaction: discord.Interaction, round_key: str, choice: str):
+        user_id = interaction.user.id
+        
+        # 같은 라운드 내 기존 투표 제거 (중복 투표 방지)
+        for opt in self.votes[round_key]:
+            self.votes[round_key][opt].discard(user_id)
+
+        # 새 항목에 투표
+        self.votes[round_key][choice].add(user_id)
+
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+        await interaction.followup.send(f"✅ [{round_key}] `{choice}` 에 투표하셨습니다.", ephemeral=True)
+
+
+# ---------------------------------------------------------
+# 5. 봇 이벤트 설정
 # ---------------------------------------------------------
 @bot.event
 async def on_ready():
@@ -127,7 +222,7 @@ async def on_ready():
 
 
 # ---------------------------------------------------------
-# 5. 슬래시 명령어 정의
+# 6. 슬래시 명령어 정의
 # ---------------------------------------------------------
 
 # --- 1) /인원체크 ---
@@ -200,38 +295,59 @@ async def force_cancel_user_error(interaction: discord.Interaction, error: app_c
         await interaction.response.send_message("❌ 이 명령어를 사용할 권한(관리자)이 없습니다.", ephemeral=True)
 
 
-# --- 3) /리롤 (명단 초기화) ---
-@bot.tree.command(name="리롤", description="[관리자 전용] 현재 진행 중인 패널의 참가 명단을 초기화합니다.")
+# --- 3) /투표패널 (1라~4라 규칙 투표 생성) ---
+@bot.tree.command(name="투표패널", description="1라~4라 규칙 투표 패널을 채널에 생성합니다.")
 @app_commands.checks.has_permissions(administrator=True)
-async def reroll_participants(interaction: discord.Interaction):
-    global active_attendance_view
+async def create_vote_panel(interaction: discord.Interaction):
+    global active_rule_vote_view
 
-    if active_attendance_view is None:
-        await interaction.response.send_message("❌ 현재 진행 중인 인원체크 패널이 없습니다.", ephemeral=True)
-        return
+    view = RuleVoteView()
+    embed = view.build_embed()
 
-    # 명단 리셋
-    active_attendance_view.participants.clear()
+    await interaction.response.send_message("투표 패널이 생성되었습니다.", ephemeral=True)
+    sent_msg = await interaction.channel.send(embed=embed, view=view)
 
-    # 패널 화면 갱신
-    if active_attendance_view.message:
-        try:
-            await active_attendance_view.message.edit(
-                embed=active_attendance_view.build_embed(),
-                view=active_attendance_view
-            )
-        except Exception as e:
-            print(f"패널 업데이트 오류: {e}")
+    view.message = sent_msg
+    active_rule_vote_view = view
 
-    await interaction.response.send_message("🔄 참가 명단이 초기화되었습니다.", ephemeral=True)
-
-@reroll_participants.error
-async def reroll_participants_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+@create_vote_panel.error
+async def create_vote_panel_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.MissingPermissions):
         await interaction.response.send_message("❌ 이 명령어를 사용할 권한(관리자)이 없습니다.", ephemeral=True)
 
 
-# --- 4) /청소 (메시지 대량 삭제) ---
+# --- 4) /리롤 (규칙 투표 초기화 및 패널 리셋) ---
+@bot.tree.command(name="리롤", description="[관리자 전용] 규칙 투표 표수를 초기화하고 패널을 리셋합니다.")
+@app_commands.checks.has_permissions(administrator=True)
+async def reroll_vote_panel(interaction: discord.Interaction):
+    global active_rule_vote_view
+
+    if active_rule_vote_view is None:
+        await interaction.response.send_message("❌ 활성화된 규칙 투표 패널이 없습니다. 먼저 `/투표패널`을 생성해 주세요.", ephemeral=True)
+        return
+
+    # 투표 상태 초기화
+    active_rule_vote_view.reroll()
+
+    # 패널 화면 갱신
+    if active_rule_vote_view.message:
+        try:
+            await active_rule_vote_view.message.edit(
+                embed=active_rule_vote_view.build_embed(),
+                view=active_rule_vote_view
+            )
+        except Exception as e:
+            print(f"투표 패널 업데이트 오류: {e}")
+
+    await interaction.response.send_message("🔄 규칙 투표가 초기화(리롤)되었습니다.", ephemeral=True)
+
+@reroll_vote_panel.error
+async def reroll_vote_panel_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message("❌ 이 명령어를 사용할 권한(관리자)이 없습니다.", ephemeral=True)
+
+
+# --- 5) /청소 (메시지 대량 삭제) ---
 @bot.tree.command(name="청소", description="[관리자 전용] 지정한 개수만큼 채널의 메시지를 삭제합니다.")
 @app_commands.describe(개수="삭제할 메시지 개수 (1~100)")
 @app_commands.checks.has_permissions(administrator=True)
@@ -251,7 +367,7 @@ async def clear_messages_error(interaction: discord.Interaction, error: app_comm
 
 
 # ---------------------------------------------------------
-# 6. 실행 구문
+# 7. 실행 구문
 # ---------------------------------------------------------
 if __name__ == "__main__":
     keep_alive()
