@@ -474,13 +474,28 @@ async def clear_messages_error(interaction: discord.Interaction, error: app_comm
 if __name__ == "__main__":
     keep_alive()
 
-    TOKEN = os.environ.get("DISCORD_TOKEN")
-    if not TOKEN:
+    # 환경변수에서 통합 문자열 가져오기
+    ENV_VALUE = os.environ.get("DISCORD_TOKEN")
+    if not ENV_VALUE:
         print("CRITICAL ERROR: DISCORD_TOKEN 환경변수가 설정되지 않았습니다.", file=sys.stderr)
         sys.exit(1)
 
+    # '|' 기호가 포함되어 있다면 토큰과 로그 채널 ID로 분리
+    if "|" in ENV_VALUE:
+        TOKEN, channel_id_str = ENV_VALUE.split("|", 1)
+        try:
+            LOG_CHANNEL_ID = int(channel_id_str.strip())
+        except ValueError:
+            LOG_CHANNEL_ID = 0
+    else:
+        # 기존처럼 토큰만 들어온 경우
+        TOKEN = ENV_VALUE
+        LOG_CHANNEL_ID = 0
+
+    print(f"Loaded LOG_CHANNEL_ID: {LOG_CHANNEL_ID}")
+
     try:
-        bot.run(TOKEN)
+        bot.run(TOKEN.strip())
     except Exception as e:
         print(f"CRITICAL ERROR: Bot failed to run: {e}", file=sys.stderr)
         sys.exit(1)
