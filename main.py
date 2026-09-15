@@ -41,7 +41,7 @@ def keep_alive():
 # ---------------------------------------------------------
 KST = datetime.timezone(datetime.timedelta(hours=9))
 
-# 운영진 로그 채널 ID (환경변수 또는 지정 ID)
+# 운영진 로그 채널 ID (환경변수 설정 또는 기본값 0)
 LOG_CHANNEL_ID = int(os.environ.get("LOG_CHANNEL_ID", 0))
 
 intents = discord.Intents.default()
@@ -103,7 +103,6 @@ class AttendanceView(discord.ui.View):
             await interaction.response.send_message("❌ 참가 명단에 없습니다.", ephemeral=True)
             return
 
-        # 마감 시간 체크 (시작 20분 전부터 취소 불가)
         now = datetime.datetime.now(KST)
         time_diff = (self.start_time_obj - now).total_seconds() / 60.0
 
@@ -145,23 +144,23 @@ class FirstComeLineView(discord.ui.View):
             )
             return
 
+        # 선착순 선점
         self.is_closed = True
         self.clicked_user = interaction.user
         self.set_all_buttons_disabled(True)
 
-        await interaction.response.send_message(
-            f"✅ **[ {selection_name} ] 리롤 신청에 성공하셨습니다.**",
-            ephemeral=True
+        # 결과 Embed 생성
+        embed = discord.Embed(
+            title="✅ 리롤 신청 마감",
+            description=f"🔥 **[{selection_name}] 리롤 신청 성공:** {interaction.user.mention}",
+            color=discord.Color.blue()
         )
 
-        if self.message:
-            embed = self.message.embeds[0]
-            embed.title = "✅ 리롤 신청 마감"
-            embed.description = f"🔥 **[{selection_name}] 리롤 신청 성공:** {interaction.user.mention}"
-            embed.color = discord.Color.blue()
-            await self.message.edit(embed=embed, view=self)
+        # 메시지 원본 업데이트 (버튼 비활성화 및 Embed 교체)
+        await interaction.response.edit_message(embed=embed, view=self)
+        await interaction.followup.send(f"✅ **[ {selection_name} ] 리롤 신청에 성공하셨습니다.**", ephemeral=True)
 
-        # 로그 채널 전송
+        # 운영진 로그 채널 전송
         if LOG_CHANNEL_ID != 0 and interaction.guild:
             log_channel = interaction.guild.get_channel(LOG_CHANNEL_ID)
             if log_channel:
@@ -203,6 +202,84 @@ class FirstComeLineView(discord.ui.View):
     @discord.ui.button(label="올랜팀폭", style=discord.ButtonStyle.danger, custom_id="team_bomb_allrand", row=1)
     async def allrand_bomb_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.handle_selection(interaction, "올랜팀폭")
+
+
+# ---------------------------------------------------------
+# 5. UI 클래스 3: 라운드별 규칙 투표 UI
+# ---------------------------------------------------------
+class RuleVoteView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.pool = {
+            "1라": ["올랜팀폭", "라인별팀폭"],
+            "2라": ["선착순 1명", "일반전"],
+            "3라": ["올랜팀폭", "라인별팀폭"],
+            "4라": ["선착순 1명", "일반전"]
+        }
+        self.votes = {
+            round_key: {option: set() for option in options}
+            for round_key, options in self.pool.items()
+        }
+        self.message: Optional[discord.Message] = None
+
+    def build_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title="🎯 라운드별 규칙 투표 패널",
+            description="아래 버튼을 눌러 라운드별 원하는 규칙에 투표하세요!",
+            color=discord.Color.gold()
+        )
+        
+        for round_name, options in self.votes.items():
+            field_val = ""
+            for opt, voters in options.items():
+                field_val += f"• **{opt}**: {len(voters)}표\n"
+            embed.add_field(name=f"📌 {round_name}", value=field_val, inline=False)
+
+        embed.set_footer(text="1인당 라운드별 1표씩 투표 가능합니다.")
+        return embed
+
+    @discord.ui.button(label="1라: 올랜팀폭", style=discord.ButtonStyle.primary, custom_id="v1_opt1", row=0)
+    async def v1_o1(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._vote(interaction, "1라", "올랜팀폭")
+
+    @discord.ui.button(label="1라: 라인별팀폭", style=discord.ButtonStyle.primary, custom_id="v1_opt2", row=0)
+    async def v1_o2(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._vote(interaction, "1라", "라인별팀폭")
+
+    @discord.ui.button(label="2라: 선착순 1명", style=discord.ButtonStyle.secondary, custom_id="v2_opt1", row=1)
+    async def v2_o1(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._vote(interaction, "2라", "선착순 1명")
+
+    @discord.ui.button(label="2라: 일반전", style=discord.ButtonStyle.secondary, custom_id="v2_opt2", row=1)
+    async def v2_o2(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._vote(interaction, "2라", "일반전")
+
+    @discord.ui.button(label="3라: 올랜팀폭", style=discord.ButtonStyle.primary, custom_id="v3_opt1", row=2)
+    async def v3_o1(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._vote(interaction, "3라", "올랜팀폭")
+
+    @discord.ui.button(label="3라: 라인별팀폭", style=discord.ButtonStyle.primary, custom_id="v3_opt2", row=2)
+    async def v3_o2(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._vote(interaction, "3라", "라인별팀폭")
+
+    @discord.ui.button(label="4라: 선착순 1명", style=discord.ButtonStyle.secondary, custom_id="v4_opt1", row=3)
+    async def v4_o1(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._vote(interaction, "4라", "선착순 1명")
+
+    @discord.ui.button(label="4라: 일반전", style=discord.ButtonStyle.secondary, custom_id="v4_opt2", row=3)
+    async def v4_o2(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._vote(interaction, "4라", "일반전")
+
+    async def _vote(self, interaction: discord.Interaction, round_key: str, choice: str):
+        user_id = interaction.user.id
+        
+        for opt in self.votes[round_key]:
+            self.votes[round_key][opt].discard(user_id)
+
+        self.votes[round_key][choice].add(user_id)
+
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+        await interaction.followup.send(f"✅ [{round_key}] `{choice}` 에 투표하셨습니다.", ephemeral=True)
 
 
 # 카운트다운 및 10초 대기 처리 함수
@@ -256,7 +333,7 @@ async def run_countdown_and_start(interaction: discord.Interaction, title_text: 
 
 
 # ---------------------------------------------------------
-# 5. 봇 이벤트 설정
+# 6. 봇 이벤트 설정
 # ---------------------------------------------------------
 @bot.event
 async def on_ready():
@@ -269,10 +346,10 @@ async def on_ready():
 
 
 # ---------------------------------------------------------
-# 6. 슬래시 명령어 정의
+# 7. 슬래시 명령어 정의
 # ---------------------------------------------------------
 
-# --- 1) /리롤 (선착순 리롤/팀폭 신청) ---
+# --- 1) /리롤 ---
 @bot.tree.command(name="리롤", description="카운트다운 후 리롤 신청 버튼을 오픈합니다. (10초 제한)")
 @app_commands.checks.has_permissions(administrator=True)
 async def create_panel(interaction: discord.Interaction):
@@ -349,7 +426,28 @@ async def force_cancel_user_error(interaction: discord.Interaction, error: app_c
         await interaction.response.send_message("❌ 이 명령어를 사용할 권한(관리자)이 없습니다.", ephemeral=True)
 
 
-# --- 4) /청소 (메시지 대량 삭제) ---
+# --- 4) /투표패널 (1라~4라 규칙 투표 생성) ---
+@bot.tree.command(name="투표패널", description="1라~4라 규칙 투표 패널을 채널에 생성합니다.")
+@app_commands.checks.has_permissions(administrator=True)
+async def create_vote_panel(interaction: discord.Interaction):
+    global active_rule_vote_view
+
+    view = RuleVoteView()
+    embed = view.build_embed()
+
+    await interaction.response.send_message("투표 패널이 생성되었습니다.", ephemeral=True)
+    sent_msg = await interaction.channel.send(embed=embed, view=view)
+
+    view.message = sent_msg
+    active_rule_vote_view = view
+
+@create_vote_panel.error
+async def create_vote_panel_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message("❌ 이 명령어를 사용할 권한(관리자)이 없습니다.", ephemeral=True)
+
+
+# --- 5) /청소 (메시지 대량 삭제) ---
 @bot.tree.command(name="청소", description="[관리자 전용] 지정한 개수만큼 채널의 메시지를 삭제합니다.")
 @app_commands.describe(개수="삭제할 메시지 개수 (1~100)")
 @app_commands.checks.has_permissions(administrator=True)
@@ -369,7 +467,7 @@ async def clear_messages_error(interaction: discord.Interaction, error: app_comm
 
 
 # ---------------------------------------------------------
-# 7. 실행 구문
+# 8. 실행 구문
 # ---------------------------------------------------------
 if __name__ == "__main__":
     keep_alive()
