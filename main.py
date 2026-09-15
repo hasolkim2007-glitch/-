@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import datetime
-from flask import flask
+from flask import Flask
 import asyncio
 
 # ==========================================
