@@ -162,7 +162,7 @@ class FirstComeLineView(discord.ui.View):
 
         # 운영진 로그 채널 전송
         if LOG_CHANNEL_ID != 1549301300053811290 and interaction.guild:
-    try:
+            try:
         # 캐시 대신 API를 통해 채널을 비동기로 가져옵니다.
         log_channel = await interaction.client.fetch_channel(int(LOG_CHANNEL_ID))
         
