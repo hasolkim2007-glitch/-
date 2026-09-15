@@ -5,6 +5,21 @@ from discord import app_commands
 import datetime
 import asyncio
 
+# ==========================================
+# 1. Render 웹 바인딩용 Flask 서버 설정
+# ==========================================
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is alive!"
+
+def run_flask():
+    # Render에서 지정하는 PORT 번호를 읽어옴 (기본값 10000)
+    port = int(os.environ.get("PORT", 10000))
+    # 0.0.0.0 포트로 바인딩
+    app.run(host='0.0.0.0', port=port)
+    
 # --- 사용자 설정 영역 ---
 TOKEN = os.environ.get('TOKEN')       # 디스코드 봇 토큰 입력
 LOG_CHANNEL_ID = 1549301300053811290  # 운영진 로그 채널 ID (정수형)
