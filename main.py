@@ -152,7 +152,7 @@ class FirstComeLineView(discord.ui.View):
         # 결과 Embed 생성
         embed = discord.Embed(
             title="✅ 리롤 신청 마감",
-            description=f"🔥 **[{selection_name}] 리롤 신청 성공:** {interaction.user.mention}",
+            description=f"🔥 **[{selection_name}] 리롤 신청 성공:** ",
             color=discord.Color.blue()
         )
 
@@ -161,11 +161,24 @@ class FirstComeLineView(discord.ui.View):
         await interaction.followup.send(f"✅ **[ {selection_name} ] 리롤 신청에 성공하셨습니다.**", ephemeral=True)
 
         # 운영진 로그 채널 전송
-        if LOG_CHANNEL_ID != 0 and interaction.guild:
-            log_channel = interaction.guild.get_channel(LOG_CHANNEL_ID)
-            if log_channel:
-                now_str = datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                user = interaction.user
+        f LOG_CHANNEL_ID != 1549301300053811290 and interaction.guild:
+    try:
+        # 캐시 대신 API를 통해 채널을 비동기로 가져옵니다.
+        log_channel = await interaction.client.fetch_channel(int(LOG_CHANNEL_ID))
+        
+        if log_channel:
+            now_str = datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            user = interaction.user
+            
+            # 로그 메시지 전송 예시 (Embed 또는 일반 텍스트)
+            await log_channel.send(f"[{now_str}] {user.mention} 님이 리롤을 진행했습니다.")
+            
+    except discord.NotFound:
+        print(f"[Error] LOG_CHANNEL_ID({LOG_CHANNEL_ID})에 해당하는 채널을 찾을 수 없습니다.")
+    except discord.Forbidden:
+        print(f"[Error] 봇이 로그 채널에 접근하거나 메시지를 보낼 권한이 없습니다.")
+    except Exception as e:
+        print(f"[Error] 로그 전송 중 오류 발생: {e}")
                 
                 embed_log = discord.Embed(
                     title="리롤/팀폭 신청 성공",
