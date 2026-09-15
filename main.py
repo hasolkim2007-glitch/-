@@ -1,4 +1,5 @@
 import os
+import sys
 import threading
 import datetime
 import logging
@@ -11,11 +12,11 @@ from flask import Flask
 from waitress import serve
 
 # ---------------------------------------------------------
-# 1. Flask 서버 설정 (UptimeRobot / Render 포트 감지용)
+# 1. Flask 서버 설정 (Render 포트 감지 필수)
 # ---------------------------------------------------------
 app = Flask(__name__)
 
-# Flask/Werkzeug 관련 경고 로그 최소화
+# Flask 로그 출력 최소화
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
@@ -24,7 +25,9 @@ def home():
     return "Bot is running!"
 
 def run_flask():
+    # Render가 제공하는 PORT 환경변수 사용 (기본값 10000)
     port = int(os.environ.get("PORT", 10000))
+    print(f"Starting Flask server on port {port}...")
     serve(app, host='0.0.0.0', port=port)
 
 def keep_alive():
@@ -52,7 +55,7 @@ active_attendance_view: Optional['AttendanceView'] = None
 # ---------------------------------------------------------
 class AttendanceView(discord.ui.View):
     def __init__(self, title: str, start_time_obj: datetime.datetime, raw_time_str: str):
-        super().__init__(timeout=None)  # 영구 유지 패널
+        super().__init__(timeout=None)
         self.title = title
         self.start_time_obj = start_time_obj
         self.raw_time_str = raw_time_str
@@ -60,7 +63,6 @@ class AttendanceView(discord.ui.View):
         self.message: Optional[discord.Message] = None
 
     def build_embed(self) -> discord.Embed:
-        """현재 참가 명단 상태를 반영한 임베드 생성"""
         embed = discord.Embed(
             title=f"📋 {self.title}",
             description=f"⏰ **시작 시간:** `{self.raw_time_str}`\n⚠️ **주의:** 시작 20분 전부터는 버튼으로 직접 취소가 불가능합니다.",
@@ -136,7 +138,6 @@ async def on_ready():
 async def attendance_panel(interaction: discord.Interaction, 제목: str, 시작시간: str):
     global active_attendance_view
 
-    # 시간 파싱
     try:
         parsed_time = datetime.datetime.strptime(시작시간.strip(), "%H:%M").time()
         now = datetime.datetime.now(KST)
@@ -148,14 +149,12 @@ async def attendance_panel(interaction: discord.Interaction, 제목: str, 시작
         )
         return
 
-    # View 및 임베드 생성
     view = AttendanceView(title=제목, start_time_obj=start_time_obj, raw_time_str=시작시간)
     embed = view.build_embed()
 
     await interaction.response.send_message("인원 체크 패널이 생성되었습니다.", ephemeral=True)
     sent_msg = await interaction.channel.send(embed=embed, view=view)
 
-    # 객체 참조 연결
     view.message = sent_msg
     active_attendance_view = view
 
@@ -180,10 +179,8 @@ async def force_cancel_user(interaction: discord.Interaction, 유저: discord.Me
         await interaction.response.send_message(f"❌ {유저.mention} 님은 현재 참가 명단에 없습니다.", ephemeral=True)
         return
 
-    # 명단에서 강제 제외
     active_attendance_view.participants.remove(유저)
 
-    # 패널 메세지 자동 업데이트
     if active_attendance_view.message:
         try:
             await active_attendance_view.message.edit(
@@ -205,13 +202,19 @@ async def force_cancel_user_error(interaction: discord.Interaction, error: app_c
 
 
 # ---------------------------------------------------------
-# 6. 실행 구문
+# 6. 실행 구문 (Render 환경 대응 예외처리 강화)
 # ---------------------------------------------------------
 if __name__ == "__main__":
-    keep_alive()  # 웹 서버 실행
-    
+    # 웹 서버 먼저 시작 (Render의 포트 감지 실패 방지)
+    keep_alive()
+
     TOKEN = os.environ.get("DISCORD_TOKEN")
     if not TOKEN:
-        print("ERROR: DISCORD_TOKEN 환경변수가 설정되지 않았습니다.")
-    else:
+        print("CRITICAL ERROR: DISCORD_TOKEN 환경변수가 설정되지 않았습니다.", file=sys.stderr)
+        sys.exit(1)
+
+    try:
         bot.run(TOKEN)
+    except Exception as e:
+        print(f"CRITICAL ERROR: Bot failed to run: {e}", file=sys.stderr)
+        sys.exit(1)
