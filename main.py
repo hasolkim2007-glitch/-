@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import asyncio
 import threading
 import datetime
@@ -37,7 +38,7 @@ def keep_alive():
 
 
 # ---------------------------------------------------------
-# 2. 디스코드 봇 설정 & 전역 상태 변수
+# 2. 디스코드 봇 서브클래스 설정 & 전역 상태 변수
 # ---------------------------------------------------------
 KST = datetime.timezone(datetime.timedelta(hours=9))
 
@@ -47,7 +48,17 @@ LOG_CHANNEL_ID = int(os.environ.get("LOG_CHANNEL_ID", 0))
 intents = discord.Intents.default()
 intents.message_content = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+
+class CustomBot(commands.Bot):
+    async def setup_hook(self):
+        # on_ready 대신 setup_hook에서 딱 1번만 동기화하여 속도 제한(429) 방지
+        try:
+            synced = await self.tree.sync()
+            print(f"Synced {len(synced)} command(s)")
+        except Exception as e:
+            print(f"Failed to sync commands: {e}")
+
+bot = CustomBot(command_prefix="!", intents=intents)
 
 # 전역 상태 변수
 active_attendance_view: Optional['AttendanceView'] = None
@@ -152,7 +163,7 @@ class FirstComeLineView(discord.ui.View):
         # 결과 Embed 생성
         embed = discord.Embed(
             title="✅ 리롤 신청 마감",
-            description=f"🔥 **[{selection_name}] 리롤 신청 성공:** ",
+            description=f"🔥 **[{selection_name}] 리롤 신청 성공:** {interaction.user.mention}",
             color=discord.Color.blue()
         )
 
@@ -205,6 +216,7 @@ class FirstComeLineView(discord.ui.View):
     @discord.ui.button(label="올랜팀폭", style=discord.ButtonStyle.danger, custom_id="team_bomb_allrand", row=1)
     async def allrand_bomb_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.handle_selection(interaction, "올랜팀폭")
+
 
 # ---------------------------------------------------------
 # 5. UI 클래스 3: 라운드별 규칙 투표 UI
@@ -284,7 +296,7 @@ class RuleVoteView(discord.ui.View):
         await interaction.followup.send(f"✅ [{round_key}] `{choice}` 에 투표하셨습니다.", ephemeral=True)
 
 
-# 카운트다운 및 10초 대기 처리 함수
+# 카운트다운 및 15초 대기 처리 함수 (디스코드 API 속도 제한 방지 적용)
 async def run_countdown_and_start(interaction: discord.Interaction, title_text: str):
     global current_view
     current_view = FirstComeLineView(disabled_initial=True)
@@ -315,8 +327,9 @@ async def run_countdown_and_start(interaction: discord.Interaction, title_text: 
     embed.color = discord.Color.green()
     await msg.edit(embed=embed, view=current_view)
 
-    for remaining in range(14, -1, -1):
-        await asyncio.sleep(1)
+    # 15초 카운트다운 동안 3초 간격으로만 메시지 업데이트 (API Rate Limit 방지)
+    for remaining in range(12, -1, -3):
+        await asyncio.sleep(3)
         if current_view.is_closed:
             return
         
@@ -340,11 +353,6 @@ async def run_countdown_and_start(interaction: discord.Interaction, title_text: 
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
-    try:
-        synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} command(s)")
-    except Exception as e:
-        print(f"Failed to sync commands: {e}")
 
 
 # ---------------------------------------------------------
@@ -352,7 +360,7 @@ async def on_ready():
 # ---------------------------------------------------------
 
 # --- 1) /리롤 ---
-@bot.tree.command(name="리롤", description="카운트다운 후 리롤 신청 버튼을 오픈합니다. (10초 제한)")
+@bot.tree.command(name="리롤", description="카운트다운 후 리롤 신청 버튼을 오픈합니다. (15초 제한)")
 @app_commands.checks.has_permissions(administrator=True)
 async def create_panel(interaction: discord.Interaction):
     await run_countdown_and_start(interaction, "리롤 / 팀폭 신청")
@@ -469,18 +477,18 @@ async def clear_messages_error(interaction: discord.Interaction, error: app_comm
 
 
 # ---------------------------------------------------------
-# 8. 실행 구문
+# 8. 안전한 실행 구문
 # ---------------------------------------------------------
 if __name__ == "__main__":
+    # 백그라운드 Flask 서버 시작
     keep_alive()
+    time.sleep(1)  # Flask 서버가 포트를 바인딩할 수 있도록 1초 대기
 
-    # 환경변수에서 통합 문자열 가져오기
     ENV_VALUE = os.environ.get("DISCORD_TOKEN")
     if not ENV_VALUE:
         print("CRITICAL ERROR: DISCORD_TOKEN 환경변수가 설정되지 않았습니다.", file=sys.stderr)
         sys.exit(1)
 
-    # '|' 기호가 포함되어 있다면 토큰과 로그 채널 ID로 분리
     if "|" in ENV_VALUE:
         TOKEN, channel_id_str = ENV_VALUE.split("|", 1)
         try:
@@ -488,7 +496,6 @@ if __name__ == "__main__":
         except ValueError:
             LOG_CHANNEL_ID = 0
     else:
-        # 기존처럼 토큰만 들어온 경우
         TOKEN = ENV_VALUE
         LOG_CHANNEL_ID = 0
 
@@ -498,4 +505,7 @@ if __name__ == "__main__":
         bot.run(TOKEN.strip())
     except Exception as e:
         print(f"CRITICAL ERROR: Bot failed to run: {e}", file=sys.stderr)
+        # 429 차단 시 Render가 즉시 재시작하여 차단 시간이 연장되는 것을 방지하기 위해 30초 대기
+        print("Waiting 30 seconds before exiting to prevent Render rapid restart loops...", file=sys.stderr)
+        time.sleep(30)
         sys.exit(1)
