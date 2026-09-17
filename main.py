@@ -163,7 +163,7 @@ class FirstComeLineView(discord.ui.View):
         # 결과 Embed 생성
         embed = discord.Embed(
             title="✅ 리롤 신청 마감",
-            description=f"🔥 **[{selection_name}] 리롤 신청 성공:** {interaction.user.mention}",
+            description=f"🔥 **[{selection_name}] 리롤 신청 성공:** ",
             color=discord.Color.blue()
         )
 
