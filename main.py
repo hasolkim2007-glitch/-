@@ -296,7 +296,7 @@ class RuleVoteView(discord.ui.View):
         await interaction.followup.send(f"✅ [{round_key}] `{choice}` 에 투표하셨습니다.", ephemeral=True)
 
 
-# 카운트다운 및 15초 대기 처리 함수 (디스코드 API 속도 제한 방지 적용)
+# 카운트다운 및 15초 대기 처리 함수 (디스코드 클라이언트 실시간 타임스탬프 방식 적용)
 async def run_countdown_and_start(interaction: discord.Interaction, title_text: str):
     global current_view
     current_view = FirstComeLineView(disabled_initial=True)
@@ -321,22 +321,26 @@ async def run_countdown_and_start(interaction: discord.Interaction, title_text: 
 
     await asyncio.sleep(1)
     
+    # 버튼 활성화
     current_view.set_all_buttons_disabled(False)
+    
+    # 15초 후 종료 시각을 UNIX 타임스탬프(초)로 계산
+    end_time = int(time.time()) + 15
+    
     embed.title = f"⚡ {title_text}"
-    embed.description = "🔥 **신청 시작!! (남은 시간: 15초)**"
+    # <t:UNIX타임스탬프:R>을 사용하여 유저 화면에서 1초 단위로 부드럽게 감소하도록 처리
+    embed.description = f"🔥 **신청 시작!! (마감까지 <t:{end_time}:R>)**"
     embed.color = discord.Color.green()
     await msg.edit(embed=embed, view=current_view)
 
-    # 15초 카운트다운 동안 3초 간격으로만 메시지 업데이트 (API Rate Limit 방지)
-    for remaining in range(12, -1, -3):
-        await asyncio.sleep(3)
+    # 15초 동안 대기 (0.5초마다 버튼 클릭 여부 체크)
+    start_wait = time.time()
+    while time.time() - start_wait < 15:
         if current_view.is_closed:
-            return
-        
-        if remaining > 0:
-            embed.description = f"🔥 **신청 시작!! (남은 시간: {remaining}초)**"
-            await msg.edit(embed=embed)
+            return  # 누군가 클릭하여 성공하면 즉시 대기 종료
+        await asyncio.sleep(0.5)
 
+    # 15초 동안 신청이 없었던 경우 자동 마감
     if not current_view.is_closed:
         current_view.is_closed = True
         current_view.set_all_buttons_disabled(True)
