@@ -339,10 +339,10 @@ class RollView(discord.ui.View):
         # -------------------------------------------------
 
         embed = discord.Embed(
-            title="✅ 리롤 신청 마감",
+            title="✅ 리롤 / 팀폭 신청 마감",
             description=(
                 f"🔥 **[{selection_name}] "
-                f"리롤 신청 성공!**"
+                f"신청 성공!**"
             ),
             color=discord.Color.green()
         )
@@ -354,7 +354,7 @@ class RollView(discord.ui.View):
 
         await interaction.followup.send(
             f"✅ **[{selection_name}] "
-            f"리롤 신청에 성공하셨습니다.**",
+            f"신청에 성공하셨습니다.**",
             ephemeral=True
         )
 
@@ -364,15 +364,14 @@ class RollView(discord.ui.View):
 
         await send_admin_log(
             interaction,
-            "🎲 리롤 신청 성공",
+            "🎲 리롤 / 팀폭 신청 성공",
             selection_name,
             discord.Color.gold()
         )
 
-
-    # -----------------------------------------------------
+    # =====================================================
     # 리롤 버튼
-    # -----------------------------------------------------
+    # =====================================================
 
     @discord.ui.button(
         label="1라인",
@@ -391,7 +390,6 @@ class RollView(discord.ui.View):
             "1라인"
         )
 
-
     @discord.ui.button(
         label="2라인",
         style=discord.ButtonStyle.primary,
@@ -408,7 +406,6 @@ class RollView(discord.ui.View):
             interaction,
             "2라인"
         )
-
 
     @discord.ui.button(
         label="3라인",
@@ -427,7 +424,6 @@ class RollView(discord.ui.View):
             "3라인"
         )
 
-
     @discord.ui.button(
         label="4라인",
         style=discord.ButtonStyle.primary,
@@ -445,6 +441,60 @@ class RollView(discord.ui.View):
             "4라인"
         )
 
+    # =====================================================
+    # 리롤 패널에서 팀폭 선택
+    # =====================================================
+
+    @discord.ui.button(
+        label="라인별팀폭",
+        style=discord.ButtonStyle.danger,
+        custom_id="roll_bomb_line",
+        row=1
+    )
+    async def roll_bomb_line(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        await self.handle_selection(
+            interaction,
+            "라인별팀폭"
+        )
+
+    @discord.ui.button(
+        label="머리제외 올랜팀폭",
+        style=discord.ButtonStyle.danger,
+        custom_id="roll_bomb_all_no_head",
+        row=1
+    )
+    async def roll_bomb_all_no_head(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        await self.handle_selection(
+            interaction,
+            "머리제외 올랜팀폭"
+        )
+
+    @discord.ui.button(
+        label="머리포함 올랜팀폭",
+        style=discord.ButtonStyle.danger,
+        custom_id="roll_bomb_all_with_head",
+        row=2
+    )
+    async def roll_bomb_all_with_head(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        await self.handle_selection(
+            interaction,
+            "머리포함 올랜팀폭"
+        )
 
 # =========================================================
 # 8. 팀폭 UI
