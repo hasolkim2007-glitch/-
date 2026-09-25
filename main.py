@@ -1349,7 +1349,8 @@ import asyncio
 from discord.errors import HTTPException
 
 async def run_bot_with_retry():
-    bot_token = token if 'token' in globals() else TOKEN
+    # 환경변수나 상수로 설정된 TOKEN / token 확인
+    bot_token = globals().get('token') or globals().get('TOKEN') or os.environ.get('TOKEN')
 
     while True:
         try:
@@ -1357,8 +1358,7 @@ async def run_bot_with_retry():
             break
         except HTTPException as e:
             if e.status == 429:
-                print("\n[429 Rate Limit] Cloudflare/Discord IP 차단 감지됨.")
-                print("5분(300초) 대기 후 자동으로 재연결을 시도합니다...\n")
+                print("\n[429 Rate Limit] Discord IP 차단 감지됨. 5분 대기 후 재연결 시도...\n")
             else:
                 print(f"[HTTP 에러 발생] {e}")
         except Exception as e:
