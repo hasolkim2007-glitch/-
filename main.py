@@ -1345,4 +1345,27 @@ if __name__ == "__main__":
         print("[Error] DISCORD_TOKEN 환경 변수가 설정되지 않았습니다.")
         sys.exit(1)
 
-    bot.run(token)
+    import asyncio
+from discord.errors import HTTPException
+
+async def run_bot_with_retry():
+    # token 변수명이 TOKEN이면 token -> TOKEN으로 수정해 주세요.
+    bot_token = token if 'token' in globals() else TOKEN
+    
+    while True:
+        try:
+            await bot.start(bot_token)
+            break
+        except HTTPException as e:
+            if e.status == 429:
+                print("\n[429 Rate Limit] Cloudflare/Discord IP 차단 감지됨.")
+                print("5분(300초) 대기 후 자동으로 재연결을 시도합니다...\n")
+                await asyncio.sleep(300)
+            else:
+                raise e
+        except Exception as e:
+            print(f"[Error] 오류 발생: {e}")
+            await asyncio.sleep(10)
+
+if __name__ == "__main__":
+    asyncio.run(run_bot_with_retry())
