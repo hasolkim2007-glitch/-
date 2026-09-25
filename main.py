@@ -1345,7 +1345,7 @@ if __name__ == "__main__":
         print("[Error] DISCORD_TOKEN 환경 변수가 설정되지 않았습니다.")
         sys.exit(1)
 
-   import asyncio
+import asyncio
 from discord.errors import HTTPException
 
 async def run_bot_with_retry():
