@@ -1,17 +1,38 @@
 import os
-import sys
+import subprocess
 import time
-import asyncio
 import threading
-import datetime
-import logging
-from typing import List, Optional
-
-import discord
-from discord import app_commands
-from discord.ext import commands
+import asyncio
 from flask import Flask
 from waitress import serve
+import discord
+from discord.ext import commands
+from discord.errors import HTTPException
+from aiohttp_socks import ProxyConnector
+
+# --- 1. Cloudflare SOCKS5 프록시 실행 ---
+def start_cloudflare_proxy():
+    if os.path.exists("./cloudflared"):
+        print("Starting Cloudflare Warp SOCKS5 Proxy...")
+        # 1080번 포트로 SOCKS5 프록시 서버 실행
+        subprocess.Popen([
+            "./cloudflared", "access", "tcp",
+            "--hostname", "127.0.0.1",
+            "--url", "127.0.0.1:1080"
+        ])
+
+start_cloudflare_proxy()
+time.sleep(2)  # 프록시 서버 가동 대기
+
+# --- 2. discord.py 커넥터 및 봇 설정 ---
+# 1080 포트를 통해 디스코드 API 통신 우회
+connector = ProxyConnector.from_url("socks5://127.0.0.1:1080")
+
+intents = discord.Intents.default()
+intents.message_content = True  # 필요 시 설정
+
+# bot 객체 생성 (connector 전달)
+bot = commands.Bot(command_prefix="!", intents=intents, connector=connector)
 
 
 # =========================================================
