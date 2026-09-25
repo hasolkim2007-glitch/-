@@ -1349,7 +1349,6 @@ if __name__ == "__main__":
 from discord.errors import HTTPException
 
 async def run_bot_with_retry():
-    # token 변수명 자동 체크 (token 또는 TOKEN)
     bot_token = token if 'token' in globals() else TOKEN
 
     while True:
@@ -1365,10 +1364,9 @@ async def run_bot_with_retry():
         except Exception as e:
             print(f"[Error] 예외 발생: {e}")
         finally:
-            # 닫히지 않은 세션(Unclosed client session) 정리
             if not bot.is_closed():
                 await bot.close()
-            await asyncio.sleep(300)  # 5분 대기 후 재시도
+            await asyncio.sleep(300)
 
 if __name__ == "__main__":
     asyncio.run(run_bot_with_retry())
