@@ -99,20 +99,6 @@ def get_empty_stats():
     }
 
 
-# 예:
-#
-# roll_stats = {
-#     123456789: {
-#         "1라인": 2,
-#         "2라인": 1,
-#         "3라인": 0,
-#         "4라인": 0,
-#         "라인별팀폭": 1,
-#         "머리제외 올랜팀폭": 2,
-#         "머리포함 올랜팀폭": 0
-#     }
-# }
-
 roll_stats = {}
 
 
@@ -175,10 +161,6 @@ class AttendanceView(discord.ui.View):
 
         return embed
 
-    # -----------------------------------------------------
-    # 참가하기
-    # -----------------------------------------------------
-
     @discord.ui.button(
         label="참가하기",
         style=discord.ButtonStyle.success,
@@ -212,10 +194,6 @@ class AttendanceView(discord.ui.View):
             f"✅ {user.mention} 님이 참가 신청했습니다.",
             ephemeral=True
         )
-
-    # -----------------------------------------------------
-    # 참가 취소
-    # -----------------------------------------------------
 
     @discord.ui.button(
         label="참가 취소",
@@ -301,10 +279,6 @@ class RollView(discord.ui.View):
 
         global roll_stats
 
-        # -------------------------------------------------
-        # 이미 마감
-        # -------------------------------------------------
-
         if self.is_closed:
 
             await interaction.response.send_message(
@@ -314,18 +288,10 @@ class RollView(discord.ui.View):
 
             return
 
-        # -------------------------------------------------
-        # 선착순 마감
-        # -------------------------------------------------
-
         self.is_closed = True
         self.clicked_user = interaction.user
 
         self.set_all_buttons_disabled(True)
-
-        # -------------------------------------------------
-        # 신청 기록
-        # -------------------------------------------------
 
         user_id = interaction.user.id
 
@@ -333,10 +299,6 @@ class RollView(discord.ui.View):
             roll_stats[user_id] = get_empty_stats()
 
         roll_stats[user_id][selection_name] += 1
-
-        # -------------------------------------------------
-        # 결과 Embed
-        # -------------------------------------------------
 
         embed = discord.Embed(
             title="✅ 리롤 / 팀폭 신청 마감",
@@ -358,20 +320,12 @@ class RollView(discord.ui.View):
             ephemeral=True
         )
 
-        # -------------------------------------------------
-        # 운영진 로그
-        # -------------------------------------------------
-
         await send_admin_log(
             interaction,
             "🎲 리롤 / 팀폭 신청 성공",
             selection_name,
             discord.Color.gold()
         )
-
-    # =====================================================
-    # 리롤 버튼
-    # =====================================================
 
     @discord.ui.button(
         label="1라인",
@@ -441,10 +395,6 @@ class RollView(discord.ui.View):
             "4라인"
         )
 
-    # =====================================================
-    # 리롤 패널에서 팀폭 선택
-    # =====================================================
-
     @discord.ui.button(
         label="라인별팀폭",
         style=discord.ButtonStyle.danger,
@@ -496,6 +446,7 @@ class RollView(discord.ui.View):
             "머리포함 올랜팀폭"
         )
 
+
 # =========================================================
 # 8. 팀폭 UI
 # =========================================================
@@ -529,10 +480,6 @@ class TeamBombView(discord.ui.View):
 
         global roll_stats
 
-        # -------------------------------------------------
-        # 이미 마감
-        # -------------------------------------------------
-
         if self.is_closed:
 
             await interaction.response.send_message(
@@ -542,18 +489,10 @@ class TeamBombView(discord.ui.View):
 
             return
 
-        # -------------------------------------------------
-        # 선착순 마감
-        # -------------------------------------------------
-
         self.is_closed = True
         self.clicked_user = interaction.user
 
         self.set_all_buttons_disabled(True)
-
-        # -------------------------------------------------
-        # 신청 기록
-        # -------------------------------------------------
 
         user_id = interaction.user.id
 
@@ -561,10 +500,6 @@ class TeamBombView(discord.ui.View):
             roll_stats[user_id] = get_empty_stats()
 
         roll_stats[user_id][selection_name] += 1
-
-        # -------------------------------------------------
-        # 결과 Embed
-        # -------------------------------------------------
 
         embed = discord.Embed(
             title="✅ 팀폭 신청 마감",
@@ -586,21 +521,12 @@ class TeamBombView(discord.ui.View):
             ephemeral=True
         )
 
-        # -------------------------------------------------
-        # 운영진 로그
-        # -------------------------------------------------
-
         await send_admin_log(
             interaction,
             "💥 팀폭 신청 성공",
             selection_name,
             discord.Color.red()
         )
-
-
-    # -----------------------------------------------------
-    # 라인별팀폭
-    # -----------------------------------------------------
 
     @discord.ui.button(
         label="라인별팀폭",
@@ -619,11 +545,6 @@ class TeamBombView(discord.ui.View):
             "라인별팀폭"
         )
 
-
-    # -----------------------------------------------------
-    # 머리제외 올랜팀폭
-    # -----------------------------------------------------
-
     @discord.ui.button(
         label="머리제외 올랜팀폭",
         style=discord.ButtonStyle.danger,
@@ -640,11 +561,6 @@ class TeamBombView(discord.ui.View):
             interaction,
             "머리제외 올랜팀폭"
         )
-
-
-    # -----------------------------------------------------
-    # 머리포함 올랜팀폭
-    # -----------------------------------------------------
 
     @discord.ui.button(
         label="머리포함 올랜팀폭",
@@ -804,7 +720,6 @@ class RuleVoteView(discord.ui.View):
 
         return embed
 
-
     @discord.ui.button(
         label="1라: 올랜팀폭",
         style=discord.ButtonStyle.primary,
@@ -822,7 +737,6 @@ class RuleVoteView(discord.ui.View):
             "1라",
             "올랜팀폭"
         )
-
 
     @discord.ui.button(
         label="1라: 라인별팀폭",
@@ -842,7 +756,6 @@ class RuleVoteView(discord.ui.View):
             "라인별팀폭"
         )
 
-
     @discord.ui.button(
         label="2라: 선착순 1명",
         style=discord.ButtonStyle.secondary,
@@ -860,7 +773,6 @@ class RuleVoteView(discord.ui.View):
             "2라",
             "선착순 1명"
         )
-
 
     @discord.ui.button(
         label="2라: 일반전",
@@ -880,7 +792,6 @@ class RuleVoteView(discord.ui.View):
             "일반전"
         )
 
-
     @discord.ui.button(
         label="3라: 올랜팀폭",
         style=discord.ButtonStyle.primary,
@@ -898,7 +809,6 @@ class RuleVoteView(discord.ui.View):
             "3라",
             "올랜팀폭"
         )
-
 
     @discord.ui.button(
         label="3라: 라인별팀폭",
@@ -918,7 +828,6 @@ class RuleVoteView(discord.ui.View):
             "라인별팀폭"
         )
 
-
     @discord.ui.button(
         label="4라: 선착순 1명",
         style=discord.ButtonStyle.secondary,
@@ -937,7 +846,6 @@ class RuleVoteView(discord.ui.View):
             "선착순 1명"
         )
 
-
     @discord.ui.button(
         label="4라: 일반전",
         style=discord.ButtonStyle.secondary,
@@ -955,7 +863,6 @@ class RuleVoteView(discord.ui.View):
             "4라",
             "일반전"
         )
-
 
     async def _vote(
         self,
@@ -1000,10 +907,6 @@ async def run_countdown_and_start(
 
     global current_view
 
-    # -----------------------------------------------------
-    # View 선택
-    # -----------------------------------------------------
-
     if mode == "roll":
 
         current_view = RollView(
@@ -1019,10 +922,6 @@ async def run_countdown_and_start(
         )
 
         mode_name = "팀폭"
-
-    # -----------------------------------------------------
-    # 최초 Embed
-    # -----------------------------------------------------
 
     embed = discord.Embed(
         title=f"⏳ {title_text}",
@@ -1046,10 +945,6 @@ async def run_countdown_and_start(
         ephemeral=True
     )
 
-    # -----------------------------------------------------
-    # 3 → 2
-    # -----------------------------------------------------
-
     await asyncio.sleep(1)
 
     embed.description = (
@@ -1062,10 +957,6 @@ async def run_countdown_and_start(
         embed=embed
     )
 
-    # -----------------------------------------------------
-    # 2 → 1
-    # -----------------------------------------------------
-
     await asyncio.sleep(1)
 
     embed.description = (
@@ -1077,10 +968,6 @@ async def run_countdown_and_start(
     await msg.edit(
         embed=embed
     )
-
-    # -----------------------------------------------------
-    # 시작
-    # -----------------------------------------------------
 
     await asyncio.sleep(1)
 
@@ -1096,7 +983,7 @@ async def run_countdown_and_start(
 
     embed.description = (
         f"🔥 **신청 시작!!**\n\n"
-        f"⏱️ **마감까지 <t:{end_time}:R>**"
+        f"⏱️ **마감까지 **"
     )
 
     embed.color = discord.Color.green()
@@ -1105,10 +992,6 @@ async def run_countdown_and_start(
         embed=embed,
         view=current_view
     )
-
-    # -----------------------------------------------------
-    # 대기
-    # -----------------------------------------------------
 
     start_wait = time.time()
 
@@ -1121,10 +1004,6 @@ async def run_countdown_and_start(
             return
 
         await asyncio.sleep(0.5)
-
-    # -----------------------------------------------------
-    # 시간 종료
-    # -----------------------------------------------------
 
     if not current_view.is_closed:
 
@@ -1263,10 +1142,6 @@ async def finish_roll(
     global roll_stats
     global current_view
 
-    # -----------------------------------------------------
-    # 기록 없음
-    # -----------------------------------------------------
-
     if not roll_stats:
 
         await interaction.response.send_message(
@@ -1282,10 +1157,6 @@ async def finish_roll(
 
     dm_success = 0
     dm_fail = 0
-
-    # -----------------------------------------------------
-    # 모든 신청자에게 DM
-    # -----------------------------------------------------
 
     for user_id, stats in list(
         roll_stats.items()
@@ -1313,10 +1184,6 @@ async def finish_roll(
                 color=discord.Color.blue()
             )
 
-            # -------------------------------------------------
-            # 리롤
-            # -------------------------------------------------
-
             dm_embed.add_field(
                 name="🎲 리롤",
                 value=(
@@ -1327,10 +1194,6 @@ async def finish_roll(
                 ),
                 inline=False
             )
-
-            # -------------------------------------------------
-            # 팀폭
-            # -------------------------------------------------
 
             dm_embed.add_field(
                 name="💥 팀폭",
@@ -1343,10 +1206,6 @@ async def finish_roll(
                 ),
                 inline=False
             )
-
-            # -------------------------------------------------
-            # 총합
-            # -------------------------------------------------
 
             dm_embed.add_field(
                 name="📌 총 신청 횟수",
@@ -1381,10 +1240,6 @@ async def finish_roll(
                 f"[DM 실패] {user_id}: {e}"
             )
 
-    # -----------------------------------------------------
-    # 현재 패널 닫기
-    # -----------------------------------------------------
-
     if current_view is not None:
 
         try:
@@ -1407,24 +1262,11 @@ async def finish_roll(
                 f"패널 종료 처리 오류: {e}"
             )
 
-    # -----------------------------------------------------
-    # 중요:
-    #
-    # 여기서는 roll_stats.clear()를 하지 않습니다.
-    #
-    # /리롤종료를 다시 실행하면
-    # 동일한 기록을 다시 DM할 수 있습니다.
-    #
-    # 실제 초기화는 /초기화에서 합니다.
-    # -----------------------------------------------------
-
     await interaction.followup.send(
         (
             f"✅ **리롤/팀폭 결과 DM 전송 완료**\n\n"
             f"📨 DM 성공: `{dm_success}명`\n"
-            f"❌ DM 실패: `{dm_fail}명`\n\n"
-            f"💡 횟수 기록은 아직 유지되어 있습니다.\n"
-            f"완전히 초기화하려면 `/초기화`를 사용하세요."
+            f"❌ DM 실패: `{dm_fail}명`"
         ),
         ephemeral=True
     )
@@ -1448,74 +1290,32 @@ async def finish_roll_error(
 
 
 # =========================================================
-# 16. /초기화
+# 16. /초기화 (신청 기록 데이터 리셋)
 # =========================================================
 
 @bot.tree.command(
     name="초기화",
-    description="누적된 리롤/팀폭 신청 횟수를 모두 초기화합니다."
+    description="누적된 리롤/팀폭 신청 데이터를 완전히 초기화합니다."
 )
 @app_commands.checks.has_permissions(
     administrator=True
 )
-async def reset_roll_stats(
+async def reset_stats(
     interaction: discord.Interaction
 ):
 
     global roll_stats
 
-    # -----------------------------------------------------
-    # 기록 없음
-    # -----------------------------------------------------
-
-    if not roll_stats:
-
-        await interaction.response.send_message(
-            "ℹ️ 현재 초기화할 리롤/팀폭 기록이 없습니다.",
-            ephemeral=True
-        )
-
-        return
-
-    # -----------------------------------------------------
-    # 초기화 전 통계
-    # -----------------------------------------------------
-
-    user_count = len(
-        roll_stats
-    )
-
-    total_count = 0
-
-    for stats in roll_stats.values():
-
-        total_count += sum(
-            stats.values()
-        )
-
-    # -----------------------------------------------------
-    # 초기화
-    # -----------------------------------------------------
-
     roll_stats.clear()
 
-    # -----------------------------------------------------
-    # 결과
-    # -----------------------------------------------------
-
     await interaction.response.send_message(
-        (
-            "🧹 **리롤/팀폭 횟수 초기화 완료**\n\n"
-            f"👥 기록된 유저: `{user_count}명`\n"
-            f"📊 총 신청 횟수: `{total_count}회`\n\n"
-            "이제부터 새로운 신청 횟수가 다시 집계됩니다."
-        ),
+        "🧹 **모든 리롤 / 팀폭 신청 데이터가 초기화되었습니다.**",
         ephemeral=True
     )
 
 
-@reset_roll_stats.error
-async def reset_roll_stats_error(
+@reset_stats.error
+async def reset_stats_error(
     interaction: discord.Interaction,
     error: app_commands.AppCommandError
 ):
@@ -1532,382 +1332,17 @@ async def reset_roll_stats_error(
 
 
 # =========================================================
-# 17. /인원체크
-# =========================================================
-
-@bot.tree.command(
-    name="인원체크",
-    description="참가/취소 인원 체크 패널을 생성합니다. (20분 전 취소 제한)"
-)
-@app_commands.describe(
-    제목="예: 오늘 내전 참가자 모집",
-    시작시간="HH:MM 형식 입력 (예: 21:00 또는 21:30)"
-)
-@app_commands.checks.has_permissions(
-    administrator=True
-)
-async def attendance_panel(
-    interaction: discord.Interaction,
-    제목: str,
-    시작시간: str
-):
-
-    global active_attendance_view
-
-    try:
-
-        parsed_time = datetime.datetime.strptime(
-            시작시간.strip(),
-            "%H:%M"
-        ).time()
-
-        now = datetime.datetime.now(
-            KST
-        )
-
-        start_time_obj = datetime.datetime.combine(
-            now.date(),
-            parsed_time
-        ).replace(
-            tzinfo=KST
-        )
-
-    except ValueError:
-
-        await interaction.response.send_message(
-            "❌ **시간 형식이 올바르지 않습니다.**\n"
-            "`21:00` 또는 `09:30`처럼 "
-            "**HH:MM** 형식으로 입력해 주세요.",
-            ephemeral=True
-        )
-
-        return
-
-    view = AttendanceView(
-        title=제목,
-        start_time_obj=start_time_obj,
-        raw_time_str=시작시간
-    )
-
-    embed = view.build_embed()
-
-    await interaction.response.send_message(
-        "인원 체크 패널이 생성되었습니다.",
-        ephemeral=True
-    )
-
-    sent_msg = await interaction.channel.send(
-        embed=embed,
-        view=view
-    )
-
-    view.message = sent_msg
-
-    active_attendance_view = view
-
-
-@attendance_panel.error
-async def attendance_panel_error(
-    interaction: discord.Interaction,
-    error: app_commands.AppCommandError
-):
-
-    if isinstance(
-        error,
-        app_commands.MissingPermissions
-    ):
-
-        await interaction.response.send_message(
-            "❌ 이 명령어를 사용할 권한(관리자)이 없습니다.",
-            ephemeral=True
-        )
-
-
-# =========================================================
-# 18. /강제취소
-# =========================================================
-
-@bot.tree.command(
-    name="강제취소",
-    description="[관리자 전용] 특정 유저를 참가 명단에서 강제로 제외합니다."
-)
-@app_commands.describe(
-    유저="명단에서 제외할 유저를 선택하세요."
-)
-@app_commands.checks.has_permissions(
-    administrator=True
-)
-async def force_cancel_user(
-    interaction: discord.Interaction,
-    유저: discord.Member
-):
-
-    global active_attendance_view
-
-    if active_attendance_view is None:
-
-        await interaction.response.send_message(
-            "❌ 현재 진행 중인 인원체크 패널이 없습니다.",
-            ephemeral=True
-        )
-
-        return
-
-    if 유저 not in active_attendance_view.participants:
-
-        await interaction.response.send_message(
-            f"❌ {유저.mention} 님은 "
-            f"현재 참가 명단에 없습니다.",
-            ephemeral=True
-        )
-
-        return
-
-    active_attendance_view.participants.remove(
-        유저
-    )
-
-    if active_attendance_view.message:
-
-        try:
-
-            await active_attendance_view.message.edit(
-                embed=active_attendance_view.build_embed(),
-                view=active_attendance_view
-            )
-
-        except Exception as e:
-
-            print(
-                f"패널 업데이트 오류: {e}"
-            )
-
-    await interaction.response.send_message(
-        f"✅ 관리자 권한으로 "
-        f"{유저.mention} 님을 참가 명단에서 "
-        f"강제 제외했습니다.",
-        ephemeral=True
-    )
-
-
-@force_cancel_user.error
-async def force_cancel_user_error(
-    interaction: discord.Interaction,
-    error: app_commands.AppCommandError
-):
-
-    if isinstance(
-        error,
-        app_commands.MissingPermissions
-    ):
-
-        await interaction.response.send_message(
-            "❌ 이 명령어를 사용할 권한(관리자)이 없습니다.",
-            ephemeral=True
-        )
-
-
-# =========================================================
-# 19. /투표패널
-# =========================================================
-
-@bot.tree.command(
-    name="투표패널",
-    description="1라~4라 규칙 투표 패널을 채널에 생성합니다."
-)
-@app_commands.checks.has_permissions(
-    administrator=True
-)
-async def create_vote_panel(
-    interaction: discord.Interaction
-):
-
-    global active_rule_vote_view
-
-    view = RuleVoteView()
-
-    embed = view.build_embed()
-
-    await interaction.response.send_message(
-        "투표 패널이 생성되었습니다.",
-        ephemeral=True
-    )
-
-    sent_msg = await interaction.channel.send(
-        embed=embed,
-        view=view
-    )
-
-    view.message = sent_msg
-
-    active_rule_vote_view = view
-
-
-@create_vote_panel.error
-async def create_vote_panel_error(
-    interaction: discord.Interaction,
-    error: app_commands.AppCommandError
-):
-
-    if isinstance(
-        error,
-        app_commands.MissingPermissions
-    ):
-
-        await interaction.response.send_message(
-            "❌ 이 명령어를 사용할 권한(관리자)이 없습니다.",
-            ephemeral=True
-        )
-
-
-# =========================================================
-# 20. /청소
-# =========================================================
-
-@bot.tree.command(
-    name="청소",
-    description="[관리자 전용] 지정한 개수만큼 채널의 메시지를 삭제합니다."
-)
-@app_commands.describe(
-    개수="삭제할 메시지 개수 (1~100)"
-)
-@app_commands.checks.has_permissions(
-    administrator=True
-)
-async def clear_messages(
-    interaction: discord.Interaction,
-    개수: int
-):
-
-    if 개수 < 1 or 개수 > 100:
-
-        await interaction.response.send_message(
-            "❌ 1개 이상 100개 이하의 "
-            "개수를 입력해 주세요.",
-            ephemeral=True
-        )
-
-        return
-
-    await interaction.response.defer(
-        ephemeral=True
-    )
-
-    deleted = await interaction.channel.purge(
-        limit=개수
-    )
-
-    await interaction.followup.send(
-        f"🧹 `{len(deleted)}`개의 메시지를 삭제했습니다.",
-        ephemeral=True
-    )
-
-
-@clear_messages.error
-async def clear_messages_error(
-    interaction: discord.Interaction,
-    error: app_commands.AppCommandError
-):
-
-    if isinstance(
-        error,
-        app_commands.MissingPermissions
-    ):
-
-        await interaction.response.send_message(
-            "❌ 이 명령어를 사용할 권한(관리자)이 없습니다.",
-            ephemeral=True
-        )
-
-
-# =========================================================
-# 21. 안전한 실행
+# 17. 메인 실행부
 # =========================================================
 
 if __name__ == "__main__":
 
-    # -----------------------------------------------------
-    # Flask 시작
-    # -----------------------------------------------------
-
     keep_alive()
 
-    time.sleep(1)
+    token = os.environ.get("DISCORD_TOKEN")
 
-    # -----------------------------------------------------
-    # Discord Token
-    # -----------------------------------------------------
-
-    ENV_VALUE = os.environ.get(
-        "DISCORD_TOKEN"
-    )
-
-    if not ENV_VALUE:
-
-        print(
-            "CRITICAL ERROR: "
-            "DISCORD_TOKEN 환경변수가 설정되지 않았습니다.",
-            file=sys.stderr
-        )
-
+    if not token:
+        print("[Error] DISCORD_TOKEN 환경 변수가 설정되지 않았습니다.")
         sys.exit(1)
 
-    # -----------------------------------------------------
-    # TOKEN|LOG_CHANNEL_ID 방식
-    # -----------------------------------------------------
-
-    if "|" in ENV_VALUE:
-
-        TOKEN, channel_id_str = ENV_VALUE.split(
-            "|",
-            1
-        )
-
-        try:
-
-            LOG_CHANNEL_ID = int(
-                channel_id_str.strip()
-            )
-
-        except ValueError:
-
-            LOG_CHANNEL_ID = 0
-
-    else:
-
-        TOKEN = ENV_VALUE
-
-        LOG_CHANNEL_ID = 0
-
-    print(
-        f"Loaded LOG_CHANNEL_ID: "
-        f"{LOG_CHANNEL_ID}"
-    )
-
-    # -----------------------------------------------------
-    # 봇 실행
-    # -----------------------------------------------------
-
-    try:
-
-        bot.run(
-            TOKEN.strip()
-        )
-
-    except Exception as e:
-
-        print(
-            f"CRITICAL ERROR: "
-            f"Bot failed to run: {e}",
-            file=sys.stderr
-        )
-
-        print(
-            "Waiting 30 seconds before exiting "
-            "to prevent Render rapid restart loops...",
-            file=sys.stderr
-        )
-
-        time.sleep(30)
-
-        sys.exit(1)
+    bot.run(token)
