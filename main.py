@@ -1,65 +1,50 @@
 import os
-import subprocess
-import time
-import threading
 import asyncio
+import threading
 from flask import Flask
 from waitress import serve
 import discord
 from discord.ext import commands
-from discord.errors import HTTPException
-from aiohttp_socks import ProxyConnector
 
-# --- 1. Cloudflare SOCKS5 프록시 실행 ---
-def start_cloudflare_proxy():
-    if os.path.exists("./cloudflared"):
-        print("Starting Cloudflare Warp SOCKS5 Proxy...")
-        # 1080번 포트로 SOCKS5 프록시 서버 실행
-        subprocess.Popen([
-            "./cloudflared", "access", "tcp",
-            "--hostname", "127.0.0.1",
-            "--url", "127.0.0.1:1080"
-        ])
+# --- 1. Render 24시간 유지용 Flask 웹서버 ---
+app = Flask('')
 
-start_cloudflare_proxy()
-time.sleep(2)  # 프록시 서버 가동 대기
-
-# --- 2. discord.py 커넥터 및 봇 설정 ---
-# 1080 포트를 통해 디스코드 API 통신 우회
-connector = ProxyConnector.from_url("socks5://127.0.0.1:1080")
-
-intents = discord.Intents.default()
-intents.message_content = True  # 필요 시 설정
-
-# bot 객체 생성 (connector 전달)
-bot = commands.Bot(command_prefix="!", intents=intents, connector=connector)
-
-
-# =========================================================
-# 1. Flask 서버 설정
-# =========================================================
-
-app = Flask(__name__)
-
-log = logging.getLogger("werkzeug")
-log.setLevel(logging.ERROR)
-
-
-@app.route("/")
+@app.route('/')
 def home():
-    return "Bot is running!"
-
+    return "Bot is alive!"
 
 def run_flask():
-    port = int(os.environ.get("PORT", 10000))
-    print(f"Starting Flask server on port {port}...")
-    serve(app, host="0.0.0.0", port=port)
-
+    port = int(os.environ.get("PORT", 8080))
+    serve(app, host='0.0.0.0', port=port)
 
 def keep_alive():
     t = threading.Thread(target=run_flask)
     t.daemon = True
     t.start()
+
+# --- 2. 디스코드 봇 설정 ---
+intents = discord.Intents.default()
+intents.message_content = True  # 필요 시 활성화
+
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user.name} (ID: {bot.user.id})")
+
+# --- 3. 메인 비동기 실행 함수 ---
+async def main():
+    # 웹서버 실행
+    keep_alive()
+    
+    # 디스코드 토큰 가져오기 (Render Environment Variable 권장)
+    token = os.getenv("DISCORD_TOKEN") or "여기에_봇_토큰_입력"
+    
+    async with bot:
+        await bot.start(token)
+
+if __name__ == "__main__":
+    asyncio.run(main())
 
 
 # =========================================================
